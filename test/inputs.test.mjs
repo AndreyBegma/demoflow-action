@@ -65,7 +65,8 @@ describe('validate', () => {
     assert.equal(validate({ ...valid, INPUT_RETENTION_DAYS: 'x' }).length, 1);
     assert.equal(validate({ ...valid, INPUT_ARTIFACT_NAME: ' ' }).length, 1);
     assert.equal(validate({ ...valid, INPUT_FAIL_ON_ERROR: 'yes' }).length, 1);
-    assert.deepEqual(validate({ ...valid, INPUT_CACHE_BROWSERS: 'FALSE' }), []);
+    assert.deepEqual(validate({ ...valid, INPUT_CACHE_BROWSERS: 'false' }), []);
+    assert.equal(validate({ ...valid, INPUT_CACHE_BROWSERS: 'FALSE' }).length, 1);
   });
 });
 
@@ -80,7 +81,8 @@ describe('helpers', () => {
   it('parseFormats and parseBoolean', () => {
     assert.deepEqual(parseFormats(''), []);
     assert.deepEqual(parseFormats('gif, mp4'), ['gif', 'mp4']);
-    assert.equal(parseBoolean('True'), true);
+    assert.equal(parseBoolean('true'), true);
+    assert.equal(parseBoolean('True'), undefined);
     assert.equal(parseBoolean('false'), false);
     assert.equal(parseBoolean('1'), undefined);
   });

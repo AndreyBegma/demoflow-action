@@ -105,9 +105,12 @@ export function validate(env) {
   return errors;
 }
 
-/** `true` / `false` (any case), else undefined. */
+/**
+ * `true` / `false`, else undefined. Lower case only: action.yml's `if:`
+ * conditions compare the raw input with `'true'`.
+ */
 export function parseBoolean(value) {
-  const text = String(value ?? '').trim().toLowerCase();
+  const text = String(value ?? '').trim();
   if (text === 'true') return true;
   if (text === 'false') return false;
   return undefined;
