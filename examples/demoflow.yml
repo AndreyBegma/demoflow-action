@@ -1,0 +1,32 @@
+# .github/workflows/demoflow.yml: run every DemoFlow scenario on each pull
+# request, upload the videos, post one sticky comment with GIF previews and
+# fail the check on a failed demo.
+#
+# Do not switch to `pull_request_target` to get previews on fork pull
+# requests: it would run the fork's scenarios and devCommand with a write
+# token. Fork pull requests get the job summary and the artifact instead.
+
+name: demoflow
+
+on: pull_request
+
+permissions:
+  contents: write        # GIF previews branch (set `previews: false` to drop this)
+  pull-requests: write   # the sticky comment
+
+concurrency:
+  group: demoflow-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  demos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npm ci          # the app's own dependencies: devCommand needs them
+      - uses: AndreyBegma/demoflow-action@v1
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}   # secrets a scenario reads

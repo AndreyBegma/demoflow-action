@@ -128,3 +128,85 @@ jobs:
         run: |
           test "$TOTAL" = 1
           test "$PASSED" = 1
+
+  # The sticky comment and the previews branch, end to end: two runs with one
+  # artifact-name leave one comment and only the latest preview directory.
+  # A fork's token is read-only, so same-repository pull requests only.
+  pr-comment:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      NAME: self-test-pr-comment
+      BRANCH: demoflow-previews
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: First run
+        id: first
+        uses: ./
+        with:
+          working-directory: test/fixture
+          port: '3790'
+          fail-on-error: 'false'
+          artifact-name: self-test-pr-comment
+
+      # Both runs of one job share run_id-run_attempt, so plant what the second
+      # run must prune: an older directory of this PR and an expired one of
+      # another PR, as an orphan commit like the action's own.
+      - name: Seed a stale and an expired preview directory
+        shell: bash
+        run: |
+          base=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" --jq .object.sha)
+          tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$base" --jq .tree.sha)
+          meta='{"createdAt":"2000-01-01T00:00:00.000Z"}'
+          recent="{\"createdAt\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}"
+          new_tree=$(jq -n --arg base "$tree" --arg stale "pr-$PR/$NAME/1-1/meta.json" --arg expired "pr-0/$NAME/1-1/meta.json" \
+              --arg recent "$recent" --arg meta "$meta" \
+              '{base_tree: $base, tree: [
+                 {path: $stale, mode: "100644", type: "blob", content: $recent},
+                 {path: $expired, mode: "100644", type: "blob", content: $meta}]}' \
+            | gh api "repos/$GITHUB_REPOSITORY/git/trees" --input - --jq .sha)
+          commit=$(jq -n --arg tree "$new_tree" '{message: "self-test seed", tree: $tree, parents: []}' \
+            | gh api "repos/$GITHUB_REPOSITORY/git/commits" --input - --jq .sha)
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" -f sha="$commit" -F force=true --silent
+
+      - name: Second run
+        id: second
+        uses: ./
+        with:
+          working-directory: test/fixture
+          port: '3790'
+          fail-on-error: 'false'
+          artifact-name: self-test-pr-comment
+
+      - name: Assert one comment, an image for passing, and only the latest directory
+        shell: bash
+        env:
+          FIRST_URL: ${{ steps.first.outputs.comment-url }}
+          SECOND_URL: ${{ steps.second.outputs.comment-url }}
+        run: |
+          echo "first=$FIRST_URL second=$SECOND_URL"
+          test -n "$SECOND_URL"
+          test "$FIRST_URL" = "$SECOND_URL"
+          marker="<!-- demoflow-action:$NAME -->"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .body" > "$RUNNER_TEMP/bodies.txt"
+          count=$(grep -c -F "$marker" "$RUNNER_TEMP/bodies.txt")
+          echo "marker comments: $count"
+          test "$count" = 1
+          dir="pr-$PR/$NAME/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          grep -F "<img src=\"https://github.com/$GITHUB_REPOSITORY/raw/$BRANCH/$dir/passing.gif\"" "$RUNNER_TEMP/bodies.txt"
+          gh api "repos/$GITHUB_REPOSITORY/contents/$dir/passing.gif?ref=$BRANCH" --jq .size
+          gh api "repos/$GITHUB_REPOSITORY/git/trees/$BRANCH?recursive=1" --jq '.tree[].path' > "$RUNNER_TEMP/tree.txt"
+          dirs=$(grep -E "^pr-$PR/$NAME/[^/]+$" "$RUNNER_TEMP/tree.txt" || true)
+          echo "directories for this PR: $dirs"
+          test "$dirs" = "$dir"
+          if grep -q "^pr-0/" "$RUNNER_TEMP/tree.txt"; then echo "expired directory not pruned"; exit 1; fi
+          parents=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BRANCH" --jq '.parents | length')
+          test "$parents" = 0

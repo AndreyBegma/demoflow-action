@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "demoflowVersion": "0.6.0",
+  "scenarios": [
+    {
+      "scenarioId": "demoflow/long-tour.demo.json",
+      "slug": "long-tour",
+      "exitCode": 0,
+      "result": {
+        "runId": "r1",
+        "scenarioId": "demoflow/long-tour.demo.json",
+        "scenarioName": "Long tour",
+        "startedAt": "2026-10-24T10:00:00.000Z",
+        "finishedAt": "2026-10-24T10:01:30.000Z",
+        "status": "completed",
+        "stages": {
+          "readiness": { "status": "passed" },
+          "execution": { "status": "passed" },
+          "verification": { "status": "passed" },
+          "recording": { "status": "passed" },
+          "rendering": { "status": "passed" },
+          "storage": { "status": "passed" }
+        },
+        "renders": [
+          { "format": "gif", "file": "render/ffmpeg.gif", "durationMs": 90000, "sizeBytes": 12400000, "width": 800, "height": 450, "fps": 10 },
+          { "format": "mp4", "file": "render/ffmpeg.mp4", "durationMs": 90000, "sizeBytes": 6100000, "width": 1280, "height": 720, "fps": 30 }
+        ],
+        "warnings": []
+      },
+      "message": null,
+      "files": { "gif": "long-tour/demo.gif", "mp4": "long-tour/demo.mp4" }
+    }
+  ]
+}

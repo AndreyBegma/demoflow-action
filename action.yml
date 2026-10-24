@@ -25,19 +25,19 @@ inputs:
     description: Passed as --port to every run (fills ${PORT} in baseUrl and devCommand).
     default: ''
   comment:
-    description: Post or update the sticky PR comment. Not used yet (slice B).
+    description: Post or update the sticky PR comment (pull request events only; needs pull-requests write).
     default: 'true'
   previews:
-    description: Publish GIFs to the previews branch for inline display. Not used yet (slice B).
+    description: Publish GIFs to the previews branch for inline display (needs contents write).
     default: 'true'
   previews-branch:
-    description: The orphan branch for GIF previews. Not used yet (slice B).
+    description: The orphan branch for GIF previews; the action rewrites it on every publish.
     default: demoflow-previews
   max-gif-size-mb:
-    description: Larger GIFs are not embedded in the comment. Not used yet (slice B).
+    description: Larger GIFs are not embedded in the comment; the row links the artifact.
     default: '10'
   previews-retention-days:
-    description: Preview directories older than this are pruned. Not used yet (slice B).
+    description: Preview directories older than this are pruned.
     default: '30'
   artifact-name:
     description: Artifact name; must be unique per workflow run (set it per matrix leg).
@@ -49,7 +49,7 @@ inputs:
     description: Fail the step when any scenario exited non-zero.
     default: 'true'
   github-token:
-    description: Token for the PR comment and the previews branch (slice B).
+    description: Token for the PR comment and the previews branch.
     default: ${{ github.token }}
   node-version:
     description: Empty uses node on PATH when it is >= 22, else sets up Node 22. Set, always runs actions/setup-node with it.
@@ -78,8 +78,8 @@ outputs:
     description: URL of the uploaded artifact (empty when nothing was uploaded).
     value: ${{ steps.upload.outputs.artifact-url }}
   comment-url:
-    description: URL of the sticky comment (empty when none was posted). Always empty until slice B.
-    value: ''
+    description: URL of the sticky comment (empty when none was posted).
+    value: ${{ steps.comment.outputs.comment-url }}
 
 runs:
   using: composite
@@ -109,6 +109,11 @@ runs:
         INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
         INPUT_CACHE_BROWSERS: ${{ inputs.cache-browsers }}
         INPUT_INSTALL_SYSTEM_DEPS: ${{ inputs.install-system-deps }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_PREVIEWS: ${{ inputs.previews }}
+        INPUT_PREVIEWS_BRANCH: ${{ inputs.previews-branch }}
+        INPUT_MAX_GIF_SIZE_MB: ${{ inputs.max-gif-size-mb }}
+        INPUT_PREVIEWS_RETENTION_DAYS: ${{ inputs.previews-retention-days }}
       run: node "$GITHUB_ACTION_PATH/scripts/inputs.mjs" validate
 
     - name: Install demoflow
@@ -171,6 +176,28 @@ runs:
         ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
         INPUT_WORKING_DIRECTORY: .
       run: node "$GITHUB_ACTION_PATH/scripts/report.mjs" summary
+
+    # Pull request events only; a fork, a refused push or a refused API call
+    # degrades to links or the summary inside the script.
+    - name: Previews and comment
+      id: comment
+      if: always() && steps.run.outputs.results != '' && github.event.pull_request
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DEMOFLOW_RESULTS: ${{ steps.run.outputs.results }}
+        ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        INPUT_WORKING_DIRECTORY: .
+        INPUT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        INPUT_SCENARIOS: ${{ inputs.scenarios }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_PREVIEWS: ${{ inputs.previews }}
+        INPUT_PREVIEWS_BRANCH: ${{ inputs.previews-branch }}
+        INPUT_MAX_GIF_SIZE_MB: ${{ inputs.max-gif-size-mb }}
+        INPUT_PREVIEWS_RETENTION_DAYS: ${{ inputs.previews-retention-days }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/scripts/comment.mjs"
 
     - name: Verdict
       shell: bash

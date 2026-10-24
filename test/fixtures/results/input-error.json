@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "demoflowVersion": "0.6.0",
+  "scenarios": [
+    {
+      "scenarioId": "demoflow/broken.demo.json",
+      "slug": "broken",
+      "exitCode": 2,
+      "result": null,
+      "message": "error: /home/runner/work/shop/shop/demoflow/broken.demo.json: steps[0].action: \"clik\" is not an action (```)",
+      "files": {}
+    }
+  ]
+}

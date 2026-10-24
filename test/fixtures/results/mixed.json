@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "demoflowVersion": "0.6.0",
+  "scenarios": [
+    {
+      "scenarioId": "demoflow/customers.demo.json",
+      "slug": "customers",
+      "exitCode": 0,
+      "result": {
+        "runId": "r1",
+        "scenarioId": "demoflow/customers.demo.json",
+        "scenarioName": "Customers",
+        "startedAt": "2026-10-24T10:00:00.000Z",
+        "finishedAt": "2026-10-24T10:00:14.200Z",
+        "status": "completed",
+        "stages": {
+          "readiness": { "status": "passed" },
+          "execution": { "status": "passed" },
+          "verification": { "status": "passed" },
+          "recording": { "status": "passed" },
+          "rendering": { "status": "passed" },
+          "storage": { "status": "passed" }
+        },
+        "renders": [
+          { "format": "gif", "file": "render/ffmpeg.gif", "durationMs": 14000, "sizeBytes": 3000000, "width": 800, "height": 450, "fps": 10 },
+          { "format": "mp4", "file": "render/ffmpeg.mp4", "durationMs": 14000, "sizeBytes": 1800000, "width": 1280, "height": 720, "fps": 30 }
+        ],
+        "warnings": []
+      },
+      "message": null,
+      "files": { "gif": "customers/demo.gif", "mp4": "customers/demo.mp4" }
+    },
+    {
+      "scenarioId": "demoflow/failing.demo.json",
+      "slug": "failing",
+      "exitCode": 1,
+      "result": {
+        "runId": "r2",
+        "scenarioId": "demoflow/failing.demo.json",
+        "scenarioName": "Failing assertion",
+        "startedAt": "2026-10-24T10:00:20.000Z",
+        "finishedAt": "2026-10-24T10:00:26.100Z",
+        "status": "failed",
+        "stages": {
+          "readiness": { "status": "passed" },
+          "execution": { "status": "passed" },
+          "verification": {
+            "status": "failed",
+            "error": { "message": "Expected text \"Clients\" on https://shop.test/list?session=abc#top", "stepIndex": 3 }
+          },
+          "recording": { "status": "passed" },
+          "rendering": { "status": "passed" },
+          "storage": { "status": "passed" }
+        },
+        "renders": [
+          { "format": "gif", "file": "render/ffmpeg.gif", "durationMs": 6000, "sizeBytes": 1200000, "width": 800, "height": 450, "fps": 10 },
+          { "format": "mp4", "file": "render/ffmpeg.mp4", "durationMs": 6000, "sizeBytes": 900000, "width": 1280, "height": 720, "fps": 30 }
+        ],
+        "warnings": []
+      },
+      "message": null,
+      "files": { "gif": "failing/demo.gif", "mp4": "failing/demo.mp4" }
+    },
+    {
+      "scenarioId": "demoflow/login.demo.json",
+      "slug": "login",
+      "exitCode": 2,
+      "result": {
+        "runId": "r3",
+        "scenarioId": "demoflow/login.demo.json",
+        "scenarioName": "Login",
+        "startedAt": "2026-10-24T10:00:30.000Z",
+        "finishedAt": "2026-10-24T10:00:30.400Z",
+        "status": "failed",
+        "stages": {
+          "readiness": { "status": "failed", "error": { "message": "http://localhost:3790/ did not answer within 30000 ms" } },
+          "execution": { "status": "skipped" },
+          "verification": { "status": "skipped" },
+          "recording": { "status": "skipped" },
+          "rendering": { "status": "skipped" },
+          "storage": { "status": "skipped" }
+        },
+        "renders": [],
+        "warnings": []
+      },
+      "message": null,
+      "files": {}
+    }
+  ]
+}

@@ -93,10 +93,27 @@ export function validate(env) {
     errors.push('artifact-name: must not be empty');
   }
 
+  const maxGif = String(env.INPUT_MAX_GIF_SIZE_MB ?? '').trim();
+  if (!(/^\d+(\.\d+)?$/.test(maxGif) && Number(maxGif) > 0)) {
+    errors.push(`max-gif-size-mb: "${maxGif}" is not a positive number of megabytes`);
+  }
+
+  const previewsRetention = String(env.INPUT_PREVIEWS_RETENTION_DAYS ?? '').trim();
+  if (!isInteger(previewsRetention)) {
+    errors.push(`previews-retention-days: "${previewsRetention}" is not a whole number of days`);
+  }
+
+  const branch = String(env.INPUT_PREVIEWS_BRANCH ?? '').trim();
+  if (!isBranchName(branch)) {
+    errors.push(`previews-branch: "${branch}" is not a valid branch name`);
+  }
+
   for (const [name, key] of [
     ['fail-on-error', 'INPUT_FAIL_ON_ERROR'],
     ['cache-browsers', 'INPUT_CACHE_BROWSERS'],
     ['install-system-deps', 'INPUT_INSTALL_SYSTEM_DEPS'],
+    ['comment', 'INPUT_COMMENT'],
+    ['previews', 'INPUT_PREVIEWS'],
   ]) {
     if (parseBoolean(env[key]) === undefined) {
       errors.push(`${name}: "${env[key] ?? ''}" is not true or false`);
@@ -118,6 +135,18 @@ export function parseBoolean(value) {
 
 function isInteger(text) {
   return /^\d+$/.test(text);
+}
+
+/**
+ * A branch name `git check-ref-format --branch` accepts: no control
+ * characters, space, `~^:?*[\`, `..` or `@{`; no `/`-separated part that
+ * starts with `.` or ends with `.lock`; no leading `-` or `/`, no trailing
+ * `/` or `.`; not `@`.
+ */
+export function isBranchName(name) {
+  if (name === '' || name === '@' || name.startsWith('-')) return false;
+  if (/[\x00-\x20\x7f~^:?*[\\]|\.\.|@\{|\/\/|^\/|\/$|\.$/.test(name)) return false;
+  return name.split('/').every((part) => !part.startsWith('.') && !part.endsWith('.lock'));
 }
 
 /** Whether `actions/setup-node` must run: `node-version` set, or this Node is too old. */

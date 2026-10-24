@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { statusOf, summaryMarkdown, tookOf, videoOf } from '../scripts/report.mjs';
+import {
+  commentMarkdown,
+  gifOf,
+  statusOf,
+  summaryMarkdown,
+  tookOf,
+  videoOf,
+} from '../scripts/report.mjs';
 
 const stages = (overrides = {}) => {
   const all = {};
@@ -164,5 +172,126 @@ describe('summaryMarkdown', () => {
     assert.match(body, /\| \.\.\. and \d+ more: see the artifact \| \| \| \|/);
     assert.ok(body.includes('demoflow/s00.demo.json'));
     assert.ok(!body.includes('demoflow/s49.demo.json'));
+  });
+});
+
+const fixture = (name) =>
+  JSON.parse(readFileSync(new URL(`./fixtures/results/${name}.json`, import.meta.url), 'utf8'));
+
+describe('commentMarkdown', () => {
+  const raw = 'https://github.com/o/r/raw/demoflow-previews/pr-7/demoflow-videos/1-1';
+  const commentCtx = {
+    ...ctx,
+    artifactName: 'demoflow-videos',
+    scenarios: 'demoflow/**/*.demo.json',
+    maxGifBytes: 10_000_000,
+    previewUrls: { customers: `${raw}/customers.gif`, failing: `${raw}/failing.gif`, passing: `${raw}/passing.gif`, admin__users: `${raw}/admin__users.gif` },
+  };
+
+  it('all passed: marker first, the Preview column, an <img> per GIF', () => {
+    const body = commentMarkdown(fixture('all-passed'), commentCtx);
+    const [first, second] = body.split('\n');
+    assert.equal(first, '<!-- demoflow-action:demoflow-videos -->');
+    assert.equal(second, '### DemoFlow: 2 of 2 scenarios passed');
+    assert.ok(body.includes('| Scenario | Status | Took | Preview | Video |\n|---|---|---|---|---|'));
+    assert.ok(body.includes(
+      `| Passing (\`demoflow/passing.demo.json\`) | passed | 5.5 s | <img src="${raw}/passing.gif" width="400"> | [MP4, 0.5 MB](${ctx.artifactUrl}) |`,
+    ));
+    assert.ok(body.includes('| Admin users (`demoflow/admin/users.demo.json`) | passed with warnings | 8.0 s |'));
+    assert.ok(!body.includes('<details>'));
+    assert.ok(body.trimEnd().endsWith('for 0123456'));
+  });
+
+  it('mixed: failed stage, previews for rendered failures, none for readiness', () => {
+    const body = commentMarkdown(fixture('mixed'), commentCtx);
+    assert.ok(body.includes('### DemoFlow: 1 of 3 scenarios passed'));
+    assert.ok(body.includes(`| failed: verification | 6.1 s | <img src="${raw}/failing.gif" width="400"> | [MP4, 0.9 MB]`));
+    assert.ok(body.includes('| Login (`demoflow/login.demo.json`) | failed: readiness | 0.4 s | - | - |'));
+    const details = body.slice(body.indexOf('<details>'), body.indexOf('</details>'));
+    assert.ok(details.includes('verification, step 3'));
+    assert.ok(details.includes('on https://shop.test/list\n'));
+    assert.ok(!details.includes('session='));
+    assert.ok(details.includes('**`demoflow/login.demo.json`**: readiness'));
+  });
+
+  it('input error: no result, redacted message, fence safe', () => {
+    const body = commentMarkdown(fixture('input-error'), {
+      ...commentCtx,
+      redaction: { root: '/home/runner/work/shop/shop', home: '/home/runner', pathApi: path.posix },
+    });
+    assert.ok(body.includes('| `demoflow/broken.demo.json` | failed: input error | - | - | - |'));
+    assert.ok(body.includes('error: <project>/demoflow/broken.demo.json: steps[0].action'));
+    assert.ok(body.includes('(ˋˋˋ)'));
+  });
+
+  it('oversized GIF: not embedded, linked to the artifact with its size', () => {
+    const body = commentMarkdown(fixture('oversized-gif'), {
+      ...commentCtx,
+      previewUrls: { 'long-tour': `${raw}/long-tour.gif` },
+    });
+    assert.ok(body.includes(`| GIF too large (12.4 MB): see [the artifact](${ctx.artifactUrl}) |`));
+    assert.ok(!body.includes('<img'));
+  });
+
+  it('no GIF format: the Preview cell is "-"', () => {
+    const body = commentMarkdown(fixture('no-gif'), commentCtx);
+    assert.ok(body.includes('| passed | 5.0 s | - | [MP4, 0.5 MB]'));
+  });
+
+  it('a GIF that was not published links the artifact instead of an image', () => {
+    const body = commentMarkdown(fixture('all-passed'), { ...commentCtx, previewUrls: {} });
+    assert.ok(!body.includes('<img'));
+    assert.ok(body.includes(`| [GIF, 1.5 MB](${ctx.artifactUrl}) |`));
+  });
+
+  it('200 scenarios: capped at 60 000 characters with an "and N more" line', () => {
+    // 200 entries cycled from the mixed fixture, each with its own id and slug.
+    const base = fixture('mixed').scenarios;
+    const scenarios = Array.from({ length: 200 }, (_, i) => {
+      const entry = structuredClone(base[i % base.length]);
+      const id = String(i).padStart(3, '0');
+      entry.scenarioId = `demoflow/s${id}.demo.json`;
+      entry.slug = `s${id}`;
+      // Long messages, as real failures have, push the body over the cap.
+      if (entry.result.stages.verification.error) {
+        entry.result.stages.verification.error.message = `Expected ${'text '.repeat(200)}`;
+      }
+      return entry;
+    });
+    const previewUrls = Object.fromEntries(
+      scenarios.map((entry) => [entry.slug, `${raw}/${entry.slug}.gif`]),
+    );
+    const body = commentMarkdown(
+      { demoflowVersion: '0.6.0', scenarios },
+      { ...commentCtx, previewUrls, redaction: { ...ctx.redaction } },
+    );
+    assert.ok(body.length <= 60_000, String(body.length));
+    assert.ok(body.startsWith('<!-- demoflow-action:demoflow-videos -->\n'));
+    assert.ok(/\| \.\.\. and \d+ more: see the job summary \| \| \| \| \|/.test(body));
+    assert.ok(body.includes('demoflow/s000.demo.json'));
+    assert.ok(!body.includes('demoflow/s199.demo.json'));
+  });
+
+  it('zero matched: names the scenarios input', () => {
+    const body = commentMarkdown(
+      { demoflowVersion: '0.6.0', scenarios: [] },
+      { ...commentCtx, scenarios: 'demoflow/a.demo.json\n demoflow/b/** ' },
+    );
+    assert.ok(body.startsWith(
+      '<!-- demoflow-action:demoflow-videos -->\n### DemoFlow: No scenarios matched `demoflow/a.demo.json`, `demoflow/b/**`\n',
+    ));
+  });
+});
+
+describe('gifOf', () => {
+  it('prefers gif, falls back to a cropped GIF, ignores unstaged renders', () => {
+    const entry = (renders, files) => ({ slug: 's', result: { renders }, files });
+    assert.deepEqual(
+      gifOf(entry([{ format: 'gif-square', sizeBytes: 1 }, { format: 'gif', sizeBytes: 2 }], { gif: 's/demo.gif', 'gif-square': 's/demo-square.gif' })),
+      { format: 'gif', path: 's/demo.gif', sizeBytes: 2 },
+    );
+    assert.equal(gifOf(entry([{ format: 'gif-vertical', sizeBytes: 1 }], { 'gif-vertical': 'v' })).format, 'gif-vertical');
+    assert.equal(gifOf(entry([{ format: 'gif', sizeBytes: 1 }], {})), undefined);
+    assert.equal(gifOf({ result: null, files: {} }), undefined);
   });
 });
