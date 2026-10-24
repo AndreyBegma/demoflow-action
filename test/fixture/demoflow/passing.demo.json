@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "Passing",
+  "description": "Opens the customers page and checks its heading.",
+  "viewport": { "width": 1280, "height": 720 },
+  "steps": [
+    { "action": "navigate", "path": "/" },
+    { "action": "click", "target": { "role": "link", "name": "Customers" } },
+    {
+      "action": "assertVisible",
+      "target": { "role": "heading", "name": "Customers" }
+    }
+  ]
+}

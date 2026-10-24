@@ -1,0 +1,182 @@
+name: DemoFlow Demo Videos
+description: Run every DemoFlow scenario of a project, upload the rendered videos as an artifact and fail the check on a failed demo.
+author: AndreyBegma
+branding:
+  icon: film
+  color: purple
+
+# Spec: docs/spec.md. Inputs reach the scripts only through `env:` (never
+# `${{ inputs.* }}` inside a `run:` body); the logic is in scripts/*.mjs.
+
+inputs:
+  version:
+    description: Exact demoflow version to install (>= 0.6.0; no range, no `latest`).
+    default: 0.6.0
+  working-directory:
+    description: The project root, which holds demoflow.config.json.
+    default: .
+  scenarios:
+    description: Globs relative to working-directory (`*`, `**`, `?`), one per line, matched against `demoflow check`'s scenario list.
+    default: demoflow/**/*.demo.json
+  formats:
+    description: Comma-separated render formats, passed as repeated --format. Empty uses the project's render.formats.
+    default: gif,mp4
+  port:
+    description: Passed as --port to every run (fills ${PORT} in baseUrl and devCommand).
+    default: ''
+  comment:
+    description: Post or update the sticky PR comment. Not used yet (slice B).
+    default: 'true'
+  previews:
+    description: Publish GIFs to the previews branch for inline display. Not used yet (slice B).
+    default: 'true'
+  previews-branch:
+    description: The orphan branch for GIF previews. Not used yet (slice B).
+    default: demoflow-previews
+  max-gif-size-mb:
+    description: Larger GIFs are not embedded in the comment. Not used yet (slice B).
+    default: '10'
+  previews-retention-days:
+    description: Preview directories older than this are pruned. Not used yet (slice B).
+    default: '30'
+  artifact-name:
+    description: Artifact name; must be unique per workflow run (set it per matrix leg).
+    default: demoflow-videos
+  retention-days:
+    description: Artifact retention in days.
+    default: '14'
+  fail-on-error:
+    description: Fail the step when any scenario exited non-zero.
+    default: 'true'
+  github-token:
+    description: Token for the PR comment and the previews branch (slice B).
+    default: ${{ github.token }}
+  node-version:
+    description: Empty uses node on PATH when it is >= 22, else sets up Node 22. Set, always runs actions/setup-node with it.
+    default: ''
+  cache-browsers:
+    description: Cache Chromium with actions/cache.
+    default: 'true'
+  install-system-deps:
+    description: Linux only, install Chromium's system libraries with `playwright install-deps chromium` (needs sudo).
+    default: 'true'
+
+outputs:
+  results:
+    description: Absolute path of results.json.
+    value: ${{ steps.run.outputs.results }}
+  total:
+    description: Number of scenarios run.
+    value: ${{ steps.run.outputs.total }}
+  passed:
+    description: Scenarios that exited 0.
+    value: ${{ steps.run.outputs.passed }}
+  failed:
+    description: Scenarios that exited non-zero.
+    value: ${{ steps.run.outputs.failed }}
+  artifact-url:
+    description: URL of the uploaded artifact (empty when nothing was uploaded).
+    value: ${{ steps.upload.outputs.artifact-url }}
+  comment-url:
+    description: URL of the sticky comment (empty when none was posted). Always empty until slice B.
+    value: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Check Node
+      id: node
+      shell: bash
+      env:
+        INPUT_NODE_VERSION: ${{ inputs.node-version }}
+      # No node at all, or one too old to run the script: set Node up.
+      run: node "$GITHUB_ACTION_PATH/scripts/inputs.mjs" setup-node || echo "needed=true" >> "$GITHUB_OUTPUT"
+
+    - name: Set up Node
+      if: steps.node.outputs.needed == 'true'
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: ${{ inputs.node-version || '22' }}
+
+    - name: Validate inputs
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_FORMATS: ${{ inputs.formats }}
+        INPUT_PORT: ${{ inputs.port }}
+        INPUT_RETENTION_DAYS: ${{ inputs.retention-days }}
+        INPUT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        INPUT_CACHE_BROWSERS: ${{ inputs.cache-browsers }}
+        INPUT_INSTALL_SYSTEM_DEPS: ${{ inputs.install-system-deps }}
+      run: node "$GITHUB_ACTION_PATH/scripts/inputs.mjs" validate
+
+    - name: Install demoflow
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: npm install --prefix "$RUNNER_TEMP/demoflow-cli" --no-audit --no-fund "demoflow@$INPUT_VERSION"
+
+    - name: Restore Chromium
+      if: inputs.cache-browsers == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/demoflow-browsers
+        key: demoflow-chromium-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+
+    - name: Install Chromium system libraries
+      if: runner.os == 'Linux' && inputs.install-system-deps == 'true'
+      shell: bash
+      run: node "$GITHUB_ACTION_PATH/scripts/cli.mjs" playwright install-deps chromium
+
+    - name: Install Chromium
+      shell: bash
+      env:
+        PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/demoflow-browsers
+      run: node "$GITHUB_ACTION_PATH/scripts/cli.mjs" demoflow setup
+
+    - name: Run scenarios
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/demoflow-browsers
+        INPUT_WORKING_DIRECTORY: .
+        INPUT_SCENARIOS: ${{ inputs.scenarios }}
+        INPUT_FORMATS: ${{ inputs.formats }}
+        INPUT_PORT: ${{ inputs.port }}
+        INPUT_VERSION: ${{ inputs.version }}
+      run: node "$GITHUB_ACTION_PATH/scripts/run.mjs"
+
+    # Steps up to the verdict report; a failure here is a warning, never the verdict.
+    - name: Upload videos
+      id: upload
+      if: always() && steps.run.outputs.staged == 'true'
+      continue-on-error: true
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/demoflow-artifact
+        retention-days: ${{ inputs.retention-days }}
+        if-no-files-found: warn
+        overwrite: true
+
+    - name: Job summary
+      if: always() && steps.run.outputs.results != ''
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DEMOFLOW_RESULTS: ${{ steps.run.outputs.results }}
+        ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        INPUT_WORKING_DIRECTORY: .
+      run: node "$GITHUB_ACTION_PATH/scripts/report.mjs" summary
+
+    - name: Verdict
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DEMOFLOW_RESULTS: ${{ steps.run.outputs.results }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        INPUT_WORKING_DIRECTORY: .
+      run: node "$GITHUB_ACTION_PATH/scripts/verdict.mjs"

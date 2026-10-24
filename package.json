@@ -1,0 +1,14 @@
+{
+  "name": "demoflow-action",
+  "version": "0.0.0",
+  "private": true,
+  "description": "GitHub Action that runs DemoFlow scenarios, uploads the videos and fails on a failed demo",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

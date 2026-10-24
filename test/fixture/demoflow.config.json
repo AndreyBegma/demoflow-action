@@ -1,0 +1,8 @@
+{
+  "baseUrl": "http://localhost:${PORT}",
+  "devCommand": {
+    "command": "node",
+    "args": ["server.mjs"],
+    "readyUrl": "http://localhost:${PORT}/"
+  }
+}
