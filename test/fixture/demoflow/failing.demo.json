@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "name": "Failing assertion",
+  "description": "Asserts a text that is not on the page, so verification fails at step 2.",
+  "viewport": { "width": 1280, "height": 720 },
+  "steps": [
+    { "action": "navigate", "path": "/customers" },
+    {
+      "action": "assertVisible",
+      "target": { "role": "heading", "name": "Customers" }
+    },
+    {
+      "action": "assertText",
+      "target": { "role": "heading", "name": "Customers" },
+      "text": "Clients"
+    }
+  ]
+}
