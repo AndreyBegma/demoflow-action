@@ -1,5 +1,5 @@
 // Spec Decision 5: the results table and the failures block, for the job
-// summary now and the sticky comment in slice B; failure messages redacted
+// summary and the sticky comment (comment.mjs); failure messages redacted
 // like DemoFlow's `runs-report/redact.ts` (spec 264).
 //
 //   node report.mjs summary   appends the table to $GITHUB_STEP_SUMMARY

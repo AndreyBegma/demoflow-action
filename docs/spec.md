@@ -210,17 +210,29 @@ DemoFlow or third-party host. Options considered:
 
 Behaviour:
 - Branch `previews-branch` (default `demoflow-previews`), created as an
-  orphan on first use. Layout `pr-<number>/<run_id>-<run_attempt>/<slug>.gif`.
+  orphan on first use. Layout
+  `pr-<number>/<artifact-name>/<run_id>-<run_attempt>/<slug>.gif`.
   A `README.md` at its root says what the branch is and that it is
   rewritten by the action.
+  *Why `<artifact-name>`:* the legs of a matrix (the way to split scenarios,
+  with a distinct `artifact-name` each) share `run_id-run_attempt`; without
+  it they would overwrite each other's GIFs of the same slug and prune each
+  other's directories. It is also the sticky comment's key, so one comment
+  and one preview directory belong together. "This PR's older directories"
+  below means those of the same `artifact-name`.
+- The action refuses to rewrite (warns, links instead) a branch that is the
+  repository's default branch or the PR's base or head branch, or an
+  existing branch whose tip has a parent or lacks the action's `README.md`:
+  a mistyped `previews-branch` must never force-push over real history.
 - Embedded as `https://github.com/<owner>/<repo>/raw/<branch>/<path>` (a
   branch URL, not a commit URL, because the branch is rewritten; see
   pruning).
 - Each publish **rewrites the branch as a single commit** whose tree is: the
-  previous tree, minus this PR's older `pr-<number>/*` directories, minus
+  previous tree, minus this PR's older `pr-<number>/<artifact-name>/*`
+  directories, minus
   directories older than `previews-retention-days` (age taken from the
-  `run_id` directory's timestamp stored in a `meta.json` inside it), plus the
-  new GIFs. Pushed with `--force-with-lease` against the fetched SHA; on a
+  `run_id` directory's timestamp stored in a `meta.json` inside it; a
+  directory without a readable one is pruned), plus the new GIFs. Pushed with `--force-with-lease` against the fetched SHA; on a
   lease failure (another PR pushed in between) re-fetch and retry up to 3
   times, then warn and fall back to links. *Why one commit:* history would
   otherwise keep every GIF forever and grow the repository's clone size; an
