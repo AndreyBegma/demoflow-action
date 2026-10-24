@@ -140,16 +140,50 @@ export function videoOf(entry, artifactUrl) {
   return artifactUrl ? `[${label}](${artifactUrl})` : label;
 }
 
+/** Display width of an inline GIF (Decision 5). */
+export const PREVIEW_WIDTH = 400;
+
+/**
+ * The GIF of an entry: the `gif` render, else the first cropped one
+ * (`gif-vertical`, `gif-square`); `path` is relative to the staging directory.
+ * Undefined when nothing GIF was rendered and staged.
+ */
+export function gifOf(entry) {
+  const renders = (entry.result?.renders ?? []).filter(
+    (r) => (r.format === 'gif' || r.format.startsWith('gif-')) && entry.files?.[r.format],
+  );
+  const render = renders.find((r) => r.format === 'gif') ?? renders[0];
+  if (!render) return undefined;
+  return { format: render.format, path: entry.files[render.format], sizeBytes: render.sizeBytes };
+}
+
+/**
+ * The Preview column: the published GIF inline, a too-large note, a link to
+ * the artifact when the GIF was not published, or `-` without a GIF.
+ */
+export function previewOf(entry, { previewUrls, maxGifBytes, artifactUrl }) {
+  const gif = gifOf(entry);
+  if (!gif) return '-';
+  const link = (label) => (artifactUrl ? `[${label}](${artifactUrl})` : label);
+  if (maxGifBytes !== undefined && gif.sizeBytes > maxGifBytes) {
+    return `GIF too large (${megabytes(gif.sizeBytes)}): see ${link('the artifact')}`;
+  }
+  const url = previewUrls?.[entry.slug];
+  if (url) return `<img src="${url}" width="${PREVIEW_WIDTH}">`;
+  return link(`GIF, ${megabytes(gif.sizeBytes)}`);
+}
+
 /** A table cell: no line break, no `|` that would split the row. */
 function cell(text) {
   return String(text).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
 }
 
-function rowOf(entry, artifactUrl) {
+function rowOf(entry, ctx) {
   const name = entry.result?.scenarioName;
   const id = `\`${neutraliseBackticks(entry.scenarioId)}\``;
   const scenario = name ? `${cell(neutraliseBackticks(name))} (${id})` : id;
-  return `| ${scenario} | ${statusOf(entry)} | ${tookOf(entry.result)} | ${videoOf(entry, artifactUrl)} |`;
+  const preview = ctx.preview ? ` ${previewOf(entry, ctx)} |` : '';
+  return `| ${scenario} | ${statusOf(entry)} | ${tookOf(entry.result)} |${preview} ${videoOf(entry, ctx.artifactUrl)} |`;
 }
 
 function failureBlockOf(entry, redaction) {
@@ -162,15 +196,19 @@ function failureBlockOf(entry, redaction) {
 /**
  * The job summary of Decision 5, without GIFs and without the comment marker:
  * heading, table, failures, footer; cut to `maxLength` by dropping the last
- * rows (and their failures) behind an "... and N more" line.
+ * rows (and their failures) behind an "... and N more" line. `ctx.preview`
+ * adds the Preview column (the comment's table).
  */
 export function summaryMarkdown(results, ctx) {
   const scenarios = results.scenarios ?? [];
   const passed = scenarios.filter((entry) => !isFailed(entry)).length;
   const heading =
     scenarios.length === 0
-      ? '### DemoFlow: no scenarios matched'
+      ? `### DemoFlow: ${ctx.noMatchHeading ?? 'no scenarios matched'}`
       : `### DemoFlow: ${passed} of ${scenarios.length} scenarios passed`;
+  const columns = ctx.preview
+    ? ['Scenario', 'Status', 'Took', 'Preview', 'Video']
+    : ['Scenario', 'Status', 'Took', 'Video'];
   const footer = [
     `demoflow ${results.demoflowVersion}`,
     ctx.runUrl ? `run ${ctx.runUrl}` : undefined,
@@ -183,11 +221,14 @@ export function summaryMarkdown(results, ctx) {
   const render = (shown) => {
     const parts = [heading];
     if (scenarios.length > 0) {
-      const rows = scenarios.slice(0, shown).map((entry) => rowOf(entry, ctx.artifactUrl));
+      const rows = scenarios.slice(0, shown).map((entry) => rowOf(entry, ctx));
       if (shown < scenarios.length) {
-        rows.push(`| ... and ${scenarios.length - shown} more: ${ctx.moreHint ?? 'see the job summary'} | | | |`);
+        const empty = ' |'.repeat(columns.length - 1);
+        rows.push(`| ... and ${scenarios.length - shown} more: ${ctx.moreHint ?? 'see the job summary'} |${empty}`);
       }
-      parts.push(['| Scenario | Status | Took | Video |', '|---|---|---|---|', ...rows].join('\n'));
+      const header = `| ${columns.join(' | ')} |`;
+      const rule = `|${'---|'.repeat(columns.length)}`;
+      parts.push([header, rule, ...rows].join('\n'));
       const failures = scenarios.slice(0, shown).filter(isFailed);
       if (failures.length > 0) {
         const blocks = failures.map((entry) => failureBlockOf(entry, ctx.redaction));
@@ -205,6 +246,34 @@ export function summaryMarkdown(results, ctx) {
     body = render(shown);
   }
   return body;
+}
+
+/** The sticky comment's first line: its key among the PR's comments (Decision 5). */
+export function markerOf(artifactName) {
+  return `<!-- demoflow-action:${artifactName} -->`;
+}
+
+/**
+ * The sticky comment: the marker line, then the summary with the Preview
+ * column (`ctx.previewUrls` by slug, `ctx.maxGifBytes`), capped so the whole
+ * body stays within MAX_BODY_LENGTH. With no scenario, the heading names the
+ * `scenarios` input that matched nothing.
+ */
+export function commentMarkdown(results, ctx) {
+  const marker = markerOf(ctx.artifactName);
+  const globs = String(ctx.scenarios ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((glob) => `\`${neutraliseBackticks(glob)}\``)
+    .join(', ');
+  const body = summaryMarkdown(results, {
+    ...ctx,
+    preview: true,
+    noMatchHeading: `No scenarios matched ${globs || '`(empty)`'}`,
+    maxLength: (ctx.maxLength ?? MAX_BODY_LENGTH) - marker.length - 1,
+  });
+  return `${marker}\n${body}`;
 }
 
 /** The context the summary needs, from the runner's environment. */

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "demoflowVersion": "0.6.0",
+  "scenarios": [
+    {
+      "scenarioId": "demoflow/passing.demo.json",
+      "slug": "passing",
+      "exitCode": 0,
+      "result": {
+        "runId": "r1",
+        "scenarioId": "demoflow/passing.demo.json",
+        "scenarioName": "Passing",
+        "startedAt": "2026-10-24T10:00:00.000Z",
+        "finishedAt": "2026-10-24T10:00:05.000Z",
+        "status": "completed",
+        "stages": {
+          "readiness": { "status": "passed" },
+          "execution": { "status": "passed" },
+          "verification": { "status": "passed" },
+          "recording": { "status": "passed" },
+          "rendering": { "status": "passed" },
+          "storage": { "status": "passed" }
+        },
+        "renders": [
+          { "format": "mp4", "file": "render/ffmpeg.mp4", "durationMs": 5000, "sizeBytes": 500000, "width": 1280, "height": 720, "fps": 30 },
+          { "format": "webm", "file": "render/ffmpeg.webm", "durationMs": 5000, "sizeBytes": 400000, "width": 1280, "height": 720, "fps": 30 }
+        ],
+        "warnings": []
+      },
+      "message": null,
+      "files": { "mp4": "passing/demo.mp4", "webm": "passing/demo.webm" }
+    }
+  ]
+}

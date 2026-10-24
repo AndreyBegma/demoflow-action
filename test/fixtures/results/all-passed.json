@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "demoflowVersion": "0.6.0",
+  "scenarios": [
+    {
+      "scenarioId": "demoflow/admin/users.demo.json",
+      "slug": "admin__users",
+      "exitCode": 0,
+      "result": {
+        "runId": "r1",
+        "scenarioId": "demoflow/admin/users.demo.json",
+        "scenarioName": "Admin users",
+        "startedAt": "2026-10-24T10:00:00.000Z",
+        "finishedAt": "2026-10-24T10:00:08.000Z",
+        "status": "completed_with_warnings",
+        "stages": {
+          "readiness": { "status": "passed" },
+          "execution": { "status": "passed" },
+          "verification": { "status": "passed" },
+          "recording": { "status": "passed" },
+          "rendering": { "status": "passed" },
+          "storage": { "status": "passed" }
+        },
+        "renders": [
+          { "format": "gif", "file": "render/ffmpeg.gif", "durationMs": 8000, "sizeBytes": 2000000, "width": 800, "height": 450, "fps": 10 },
+          { "format": "mp4", "file": "render/ffmpeg.mp4", "durationMs": 8000, "sizeBytes": 700000, "width": 1280, "height": 720, "fps": 30 }
+        ],
+        "warnings": ["slow step"]
+      },
+      "message": null,
+      "files": { "gif": "admin__users/demo.gif", "mp4": "admin__users/demo.mp4" }
+    },
+    {
+      "scenarioId": "demoflow/passing.demo.json",
+      "slug": "passing",
+      "exitCode": 0,
+      "result": {
+        "runId": "r2",
+        "scenarioId": "demoflow/passing.demo.json",
+        "scenarioName": "Passing",
+        "startedAt": "2026-10-24T10:00:10.000Z",
+        "finishedAt": "2026-10-24T10:00:15.500Z",
+        "status": "completed",
+        "stages": {
+          "readiness": { "status": "passed" },
+          "execution": { "status": "passed" },
+          "verification": { "status": "passed" },
+          "recording": { "status": "passed" },
+          "rendering": { "status": "passed" },
+          "storage": { "status": "passed" }
+        },
+        "renders": [
+          { "format": "gif", "file": "render/ffmpeg.gif", "durationMs": 5500, "sizeBytes": 1500000, "width": 800, "height": 450, "fps": 10 },
+          { "format": "mp4", "file": "render/ffmpeg.mp4", "durationMs": 5500, "sizeBytes": 500000, "width": 1280, "height": 720, "fps": 30 }
+        ],
+        "warnings": []
+      },
+      "message": null,
+      "files": { "gif": "passing/demo.gif", "mp4": "passing/demo.mp4" }
+    }
+  ]
+}
