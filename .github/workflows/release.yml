@@ -1,0 +1,35 @@
+name: release
+
+# Moves the major tag (v1) to the commit of a published vX.Y.Z release.
+# Release events only: this workflow never runs on a pull request.
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  move-major-tag:
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Force-move the major tag
+        shell: bash
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::notice::$TAG is not a vX.Y.Z tag; the major tag stays where it is."
+            exit 0
+          fi
+          major="v${BASH_REMATCH[1]}"
+          git tag --force "$major" "$TAG^{commit}"
+          git push --force origin "refs/tags/$major"
+          echo "$major now points to $(git rev-parse --short "$TAG^{commit}") ($TAG)"
