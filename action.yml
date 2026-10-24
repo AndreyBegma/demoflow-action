@@ -109,6 +109,11 @@ runs:
         INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
         INPUT_CACHE_BROWSERS: ${{ inputs.cache-browsers }}
         INPUT_INSTALL_SYSTEM_DEPS: ${{ inputs.install-system-deps }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_PREVIEWS: ${{ inputs.previews }}
+        INPUT_PREVIEWS_BRANCH: ${{ inputs.previews-branch }}
+        INPUT_MAX_GIF_SIZE_MB: ${{ inputs.max-gif-size-mb }}
+        INPUT_PREVIEWS_RETENTION_DAYS: ${{ inputs.previews-retention-days }}
       run: node "$GITHUB_ACTION_PATH/scripts/inputs.mjs" validate
 
     - name: Install demoflow

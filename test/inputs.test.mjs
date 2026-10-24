@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   compareVersions,
+  isBranchName,
   needsSetupNode,
   parseBoolean,
   parseFormats,
@@ -17,6 +18,11 @@ const valid = {
   INPUT_FAIL_ON_ERROR: 'true',
   INPUT_CACHE_BROWSERS: 'true',
   INPUT_INSTALL_SYSTEM_DEPS: 'false',
+  INPUT_COMMENT: 'true',
+  INPUT_PREVIEWS: 'true',
+  INPUT_PREVIEWS_BRANCH: 'demoflow-previews',
+  INPUT_MAX_GIF_SIZE_MB: '10',
+  INPUT_PREVIEWS_RETENTION_DAYS: '30',
 };
 
 describe('validate', () => {
@@ -68,6 +74,29 @@ describe('validate', () => {
     assert.deepEqual(validate({ ...valid, INPUT_CACHE_BROWSERS: 'false' }), []);
     assert.equal(validate({ ...valid, INPUT_CACHE_BROWSERS: 'FALSE' }).length, 1);
   });
+
+  it('checks the comment and previews inputs', () => {
+    assert.deepEqual(validate({ ...valid, INPUT_COMMENT: 'false', INPUT_PREVIEWS: 'false' }), []);
+    assert.equal(validate({ ...valid, INPUT_COMMENT: 'no' }).length, 1);
+    assert.equal(validate({ ...valid, INPUT_PREVIEWS: '' }).length, 1);
+    assert.deepEqual(validate({ ...valid, INPUT_MAX_GIF_SIZE_MB: '2.5' }), []);
+    for (const size of ['0', '-1', 'ten', '', '1e3']) {
+      assert.equal(validate({ ...valid, INPUT_MAX_GIF_SIZE_MB: size }).length, 1, size);
+    }
+    assert.deepEqual(validate({ ...valid, INPUT_PREVIEWS_RETENTION_DAYS: '0' }), []);
+    assert.equal(validate({ ...valid, INPUT_PREVIEWS_RETENTION_DAYS: '1.5' }).length, 1);
+    assert.equal(validate({ ...valid, INPUT_PREVIEWS_BRANCH: 'bad name' }).length, 1);
+  });
+});
+
+describe('isBranchName', () => {
+  for (const name of ['demoflow-previews', 'ci/previews', 'a.b', 'v1']) {
+    it(`accepts ${name}`, () => assert.equal(isBranchName(name), true));
+  }
+  for (const name of ['', '@', '-x', 'a..b', 'a b', 'a~1', 'a^', 'a:b', 'a?', 'a*', 'a[', 'a\\b',
+    'a@{1}', '/a', 'a/', 'a//b', 'a.', '.a', 'a/.b', 'a.lock', 'a/b.lock/c', 'a\tb']) {
+    it(`rejects ${JSON.stringify(name)}`, () => assert.equal(isBranchName(name), false));
+  }
 });
 
 describe('helpers', () => {
